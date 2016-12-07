@@ -51,7 +51,9 @@ enum instructions {
     PICK  = 0x0E,
     SKIP  = 0x0F,
 
-    INT   = 0xFE,
+    INT   = 0x10,
+    UNK   = 0x11,
+    UFUNC = 0x12,
     USER_DEFINED = 0xFF
 };
 

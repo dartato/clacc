@@ -1,10 +1,30 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <malloc.h>
+#include "lib/xalloc.h"
+#include "lib/hdict.h"
 #include "clacc.h"
 
-bool operator2int(char *token, tok *parsedToken) {
+
+
+/* hash dict functions */
+bool key_equal(hdict_key x, hdict_key y) {
+    return (strcmp((char*)x, (char*)y) == 0);
+}
+size_t key_hash(hdict_key x) {
+    /* djb2 hash function */
+    char *str = (char*)x;
+    size_t hash = 5381;
+    int c;
+    while ((c = *str++))
+        hash = ((hash <<5) + hash) + c; /* hash * 33 + c*/
+    return hash;
+}
+void uint16_t_free(hdict_value x) {
+    free((uint16_t*)x);
+}
+
+bool operator2int(char *token, tok *parsedToken, hdict_t H) {
     parsedToken->raw = token;
     if (strcmp(token, "print") == 0) {
         parsedToken->operator = PRINT;
@@ -39,92 +59,152 @@ bool operator2int(char *token, tok *parsedToken) {
     } else if (strcmp(token, ":") == 0) {
         parsedToken->operator = USER_DEFINED;
     } else {
-        fprintf(stderr, "Token not recognized: %s\n", token);
-        /*return false; */
+        void *func = hdict_lookup(H, (void*)token);
+        if (func) {
+            parsedToken->operator = UFUNC;
+            parsedToken->i = (int32_t)(uint32_t)(*((uint16_t*)func));
+        } else {
+            /* fprintf(stderr, "Token not recognized: %s\n", token); */
+            parsedToken->operator = UNK;
+            /*return false; */
+        }
     }
     return true;
 }
-bool tokenizeFunction(char *function, tokenList *tokens) {
+bool tokenizeFunction(char *function, tokenList *tokens, uint16_t functionIndex, hdict_t H) {
     char *token = strtok(function, " \n");
     tokenList *currentToken = tokens;
     while (token) {
         char *next;
         long value = strtol(token, &next, 10);
-        tok *parsedToken = malloc(sizeof(tok));
+        tok *parsedToken = xmalloc(sizeof(tok));
 
         if ((next == token) || (*next != '\0')) {
-            if (!operator2int(token, parsedToken)) {
+            if (!operator2int(token, parsedToken, H)) {
                 fprintf(stderr, "Error parsing token %s", token);
                 return false;
             }
-            currentToken->next = malloc(sizeof(tokenList));
+            currentToken->next = xmalloc(sizeof(tokenList));
             currentToken->next->token = parsedToken;
             currentToken = currentToken->next;
+            if (parsedToken->operator == USER_DEFINED) {
+                token = strtok(NULL, " ");
+                strtol(token, &next, 10);
+                if (!((next == token) || (*next != '\0'))) {
+                    fprintf(stderr, "Invalid function name %s\n", token);
+                    return false;
+                }
+                /* need to somehow check if already exists a function with functionIndex */
+                uint16_t *i = xmalloc(sizeof(uint16_t));
+                *i = functionIndex;
+                void *prev = hdict_insert(H, (void*)token, (void*)i);
+                if (prev) {
+                    free((uint16_t*)prev);
+                }
+            }
         } else {
             parsedToken->operator = INT;
             parsedToken->i = (int32_t)value;
-            currentToken->next = malloc(sizeof(tokenList));
+            currentToken->next = xmalloc(sizeof(tokenList));
             currentToken->next->token = parsedToken;
             currentToken = currentToken->next;
         }
         token = strtok(NULL, " \n");
     }
+    currentToken->next = NULL;
     return true;
 }
 
-bool splitFile(char *buffer, clac_file *output) {
+bool splitFile(char *buffer, clac_file *output, hdict_t H) {
     char *token = strtok(buffer, ";");
     list *currentFunction = output->functions;
+    uint16_t functionCount;
     while (token) {
-        currentFunction->next = malloc(sizeof(list));
+        currentFunction->next = xmalloc(sizeof(list));
         currentFunction = currentFunction->next;
         currentFunction->raw = token;
         output->functionCount++;
         token = strtok(NULL, ";");
     }
-    currentFunction = output->functions;
-    while (currentFunction->next != NULL) {
-        tokenList *functionTokens = malloc(sizeof(tokenList));
-        if (tokenizeFunction(currentFunction->next->raw, functionTokens)) {
-            currentFunction->next->tokens = functionTokens;
+    currentFunction->next = NULL;
+    fprintf(stderr, "Read %d functions.\n", output->functionCount);
+    currentFunction = output->functions->next;
+    functionCount = 1;
+    while (currentFunction != NULL) {
+        tokenList *functionTokens = xmalloc(sizeof(tokenList));
+        fprintf(stderr, "Tokenizing function %d\n", functionCount);
+        if (tokenizeFunction(currentFunction->raw, functionTokens, functionCount, H)) {
+            currentFunction->tokens = functionTokens;
             currentFunction = currentFunction->next;
+            functionCount++;
         } else {
             fprintf(stderr, "Error tokenizing %s", token);
             return false;
         }
     }
+    fprintf(stderr, "Done tokenizing functions.\n");
     return true;
 }
+
+bool fixFunctionRefs(clac_file *output, hdict_t H) {
+    list *currentFunction = output->functions->next;
+    for (int i = 1; i <= output->functionCount; i++) {
+        tokenList *currentToken = currentFunction->tokens->next;
+        if (currentToken == NULL) {
+            fprintf(stderr, "Empty program body... compiled output empty!\n");
+            return false;
+        }
+        while (currentToken->next != NULL) {
+            if (currentToken->token->operator == UNK) {
+                void *func = hdict_lookup(H, (void*)currentToken->token->raw);
+                if (func) {
+                    currentToken->token->operator = UFUNC;
+                    currentToken->token->i = (int32_t)(uint32_t)(*((uint16_t*)func));
+                }
+            }
+        if (currentToken->next== NULL)
+            fprintf(stderr, "null func\n");
+            currentToken = currentToken->next;
+        }
+        currentFunction = currentFunction->next;
+    }
+    return true;
+}
+
 bool parse(char *path, clac_file *output) {
     FILE *F = fopen(path, "r");
     char *buffer = 0;
     long length;
+    hdict_t H = hdict_new(100, &key_equal, &key_hash, &uint16_t_free);
     if (F) {
         fseek(F, 0, SEEK_END);
         length = ftell(F);
         fseek(F, 0, SEEK_SET);
-        buffer = malloc(length);
+        buffer = xmalloc(length);
         if (buffer)
         {
             fread(buffer, 1, length, F);
         }
         fclose(F);
     } else {
-        fprintf(stderr, "Error opening file %s", path);
+        fprintf(stderr, "Error opening file %s\n", path);
         return false;
     }
 
     if (buffer) {
-        if (splitFile(buffer, output)) {
+        if (splitFile(buffer, output, H) && fixFunctionRefs(output, H)) {
+            /* does first pass, then second pass to fix function references,
+             * and returns if success all in one line! */
             return true;
         } else {
-            fprintf(stderr, "Error parsing file.");
+            fprintf(stderr, "Error parsing file.\n");
             return false;
         }
     } else {
-        fprintf(stderr, "Error opening file %s", path);
+        fprintf(stderr, "Error opening file %s\n", path);
         return false;
     }
+    hdict_free(H);
 }
 
 
@@ -135,20 +215,21 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <clac_file> [args...]\n", argv[0]);
         exit(1);
     }
-    cfile.functions = malloc(sizeof(list));
+    cfile.functions = xmalloc(sizeof(list));
     cfile.functionCount = 0;
     if (!parse(argv[1], &cfile)) {
         return 1;
     }
-    fprintf(stderr, "Parse successful, read %d functions\n", cfile.functionCount);
+    fprintf(stderr, "Parse successful.\n");
     currentFunction = cfile.functions->next;
-    for (int i = 0; i < cfile.functionCount; i++) {
-        tokenList *currentToken = currentFunction->tokens;
+    for (int i = 1; i <= cfile.functionCount; i++) {
+        tokenList *currentToken = currentFunction->tokens->next;
         fprintf(stderr, "Function %d : ", i);
         while (currentToken->next != NULL) {
-            fprintf(stderr, "%02x ", currentToken->token->operator);
+            fprintf(stderr, "'%02x' ", currentToken->token->operator);
             currentToken = currentToken->next;
         }
+        currentFunction = currentFunction->next;
         fprintf(stderr, "\n");
     }
     return 0;
