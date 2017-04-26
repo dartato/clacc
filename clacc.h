@@ -20,6 +20,10 @@ typedef struct stringNode tokenList;
 struct stringNode {
     struct stringNode *next;
     tok *token;
+    char *c0_bytecode;
+    int32_t byteCount;
+    bool compiledYet;
+    int32_t args;
 };
 
 typedef struct node list;
@@ -32,6 +36,7 @@ struct node {
 typedef struct clac_file_header clac_file;
 struct clac_file_header {
     list *functions;
+    tokenList *mainFunction;
     int functionCount;
 };
 enum instructions {
@@ -45,7 +50,7 @@ enum instructions {
     POW   = 0x08,
     LT    = 0x09,
     DROP  = 0x0A,
-    SWAP  = 0x0B,
+    SWAP  = 0x5F, /* to match c0vm.h */
     ROT   = 0x0C,
     IF    = 0x0D,
     PICK  = 0x0E,
@@ -54,6 +59,9 @@ enum instructions {
     INT   = 0x10,
     UNK   = 0x11,
     UFUNC = 0x12,
+    /* Special operands */
+    UNUSED       = 0xEE,
+    USED         = 0xEF,
     USER_DEFINED = 0xFF
 };
 

@@ -1,0 +1,12 @@
+1 2 + print
+4 2 - print
+5 10 - print
+7 5 * print
+108 9 / print
+15 4 % print
+2 5 ** print
+2 8 ** print
+2 5 < print
+19 2 < print
+13 14 drop print
+quit

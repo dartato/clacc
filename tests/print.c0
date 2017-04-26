@@ -1,0 +1,8 @@
+#use <conio>
+int main() {
+    printint(5000);
+    println("");
+    printint(30);
+    println("");
+    return 0;
+}

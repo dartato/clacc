@@ -1,0 +1,10 @@
+#use <conio>
+void printo(int i) {
+    printint(i);
+    println("");
+}
+int main() {
+    printo (3);
+    printo(128);
+    return 0;
+}

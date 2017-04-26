@@ -1,0 +1,22 @@
+: comment : my valiant attempt at implementing brainfuck... ;
+: noop ;
+: dup 1 pick ;
+: .> 1 + ;
+: .< 1 - ;
+: .+ ;
+: .. dup 2 + pick ;
+: ., ;
+: .[ ;
+: .] ;
+
+: comment ds : duplicates the stack from -1 to n, leaving n, ptr at the end
+
+: ds swap dup 2 + pick rot rot swap duploop ;
+: duploop swap dup 2 + pick dup 1 + if 3 skip noop 6 skip rot rot swap duploop 2 skip drop swap ;
+
+
+: comment data starts as ( -1, A_1, A_2, ..., A_n, n, ptr) ;
+
+-1 2 2 2 2 5 1
+
+: comment ...fuck.

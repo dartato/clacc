@@ -1,0 +1,6 @@
+#use <conio>
+int main() {
+    printint(15122);
+    println("");
+    return 0;
+}
