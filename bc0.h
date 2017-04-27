@@ -9,5 +9,4 @@
 #include <stdlib.h>
 #include "clacc.h"
 
-
 #endif /* _BC0_H_ */

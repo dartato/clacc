@@ -14,5 +14,4 @@ bool parse(char *path, clac_file *output);
  * returns true if success, false if fail.
  */
 
-
 #endif /* _PARSE_H_ */

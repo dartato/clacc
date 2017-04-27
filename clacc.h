@@ -39,6 +39,7 @@ struct clac_file_header {
     tokenList *mainFunction;
     int functionCount;
 };
+
 enum instructions {
     PRINT = 0x01,
     QUIT  = 0x02,
@@ -59,6 +60,7 @@ enum instructions {
     INT   = 0x10,
     UNK   = 0x11,
     UFUNC = 0x12,
+
     /* Special operands */
     UNUSED       = 0xEE,
     USED         = 0xEF,
