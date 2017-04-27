@@ -60,8 +60,8 @@ bool operator2int(char *token, tok *parsedToken, hdict_t H) {
     } else if (strcmp(token, "skip") == 0) {
         parsedToken->operator = SKIP;
     } else if (strcmp(token, ":") == 0) {
-        parsedToken->operator = USER_DEFINED;
-    } else {
+        parsedToken->operator = USER_DEFINED; // start of function
+    } else { // custom function
         void *func = hdict_lookup(H, (void*)token);
 
         if (func) {
