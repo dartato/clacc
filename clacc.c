@@ -365,7 +365,7 @@ bool build_bytecode(clac_file *cfile) {
         /* 91 is constant, 12 bytes for each int, 1 bytes for each byte used in buffer */
         if (generate_file(buffer, header, int_pool, ints, cfile->functionCount, *((uint32_t*)buffer))) {
             fprintf (stderr, "Success.\n");
-            printf(header);
+            printf("%s", header);
         }
         fprintf(stderr, "%s\n",buffer);
     } else {
